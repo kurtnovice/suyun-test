@@ -1,0 +1,3 @@
+id,sender,to,type,amount,token,blockchain_timestamp,record_timestamp,status,notif_sent_timestamp,notif_confirm_code
+abc,bcde,abc,in,amount,USDT,1641726132,1641727000,CONFIRMED,1641728000,ac24353564gf45gf
+defg,abc,krm,out,amount,USDT,1641726132,1641727001,UNCONFIRMED,,

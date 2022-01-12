@@ -1,0 +1,8 @@
+SOURCE_FOLDER = "/Users/amritjahjadi/Documents/test_suyun/test_source/"
+DEFAULT_SOURCE_FILE_NAME = "transaction.xlsx"
+TEST_SOURCE_FILE_NAME = "example.xlsx"
+TEST_OWNER_ADDRESS = "abc"
+TEST_OWNER_REAL_ADDRESS = "TSaJqQ1AZ2bEYyqBwBmJqCBSPv8KPRTAdv"
+SERVER = "https://api.trongrid.io"
+TEST_TOKEN = "trc20"
+TEST_TOKEN_SYMBOL = "USDT"
