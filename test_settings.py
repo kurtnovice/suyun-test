@@ -1,6 +1,8 @@
 SOURCE_FOLDER = "/Users/amritjahjadi/Documents/test_suyun/test_source/"
 DEFAULT_SOURCE_FILE_NAME = "transaction.xlsx"
+DEFAULT_TOTAL_FILE_NAME = "total.xlsx"
 TEST_SOURCE_FILE_NAME = "example.xlsx"
+TEST_TOTAL_FILE_NAME = "example_total.xlsx"
 TEST_OWNER_ADDRESS = "abc"
 TEST_OWNER_REAL_ADDRESS = "TSaJqQ1AZ2bEYyqBwBmJqCBSPv8KPRTAdv"
 SERVER = "https://api.trongrid.io"

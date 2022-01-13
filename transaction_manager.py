@@ -6,11 +6,13 @@ import datetime
 from typing import List
 from observers import UpdateDataFrameObserver, SendNotificationObserver
 from sender import TelegramSender, Sender
-
+import math
+import numpy as np
 
 class TransactionManager:
     def __init__(self, server, owner_address, token, directory, file_name, token_symbol):
         # initialize adapter
+        # self._latest_record_timestamp = None
         self._trans_adp = TransactionSourceAdapter(directory, file_name)
         self._data = self._trans_adp.data
         # if previous data is longer than len 0, filter out confirmed because we ignore the previous unconfirmd
@@ -75,7 +77,7 @@ class TransactionManager:
                 self._unconfirmed_transactions.append(unconfirmed_trans)
 
     def request_params_builder(self, **kwargs):
-        self._params.update(kwargs)
+        self._params = kwargs
         return self
 
     @property
@@ -91,13 +93,13 @@ class TransactionManager:
                 # if there is data, take the last 
                 temp_data = self._data.sort_values(by="record_timestamp", ascending=False)
                 last_row = temp_data.iloc[0]
-                self._latest_record_timestamp = last_row["record_timestamp"]
+                self._latest_record_timestamp = int(last_row["record_timestamp"])
                 return self._latest_record_timestamp
             # there is none yet, so we return now, the last 10 seconds
             now = datetime.datetime.now()
             last_ten_sec = now - datetime.timedelta(seconds=10)
 
-            self._latest_record_timestamp = datetime.datetime.timestamp(last_ten_sec)
+            self._latest_record_timestamp = int(datetime.datetime.timestamp(last_ten_sec)*1000)
             return self._latest_record_timestamp
 
     @property
@@ -105,6 +107,7 @@ class TransactionManager:
         return self._unconfirmed_transactions
 
     def get_latest_transactions(self):
+        print("retrieving from API")
         url = f"{self._server}/v1/accounts/{self._owner_address}/transactions/{self._token}"
         headers = {
             "Accept": "application/json"
@@ -124,17 +127,26 @@ class TransactionManager:
         """
         # print(url)
         # print(f"query params = {json.dumps(self._params)}")
+        if "min" in self._params.keys():
+            # print(self._params["min"])
+            min = int(self._params["min"]/1000)
+            # print(min)
+            min_dt = datetime.datetime.fromtimestamp(min)
+            # print(min_dt.strftime("%Y-%m-%d %H:%M:%S"))
+        print(f"params: {json.dumps(self._params)}")
         req = requests.request("GET", url, params=self._params, headers=headers)
         # print(f"status code = {req.status_code}")
         if req.status_code >= 400:
             # bad request
+            print("BAD REQUEST")
+            print(req.text)
             pass
         elif req.status_code == 200:
             # ok
             response = json.loads(req.text)
             # we are only concerned with id, sender, to, amount, token, 
             # blockchain_timestamp, status
-            self._latest_record_timestamp = response["meta"]["at"]
+            self._latest_record_timestamp = int(response["meta"]["at"])
             trans_list = response["data"]
             transactions = []
             for trans in trans_list:
@@ -202,10 +214,10 @@ class TransactionManager:
             # this transaction doesn't exist yet
             self.insert_data([transaction])
 
-    def sort_unconfirmed_transactions(self, by="id"):
+    def sort_unconfirmed_transactions(self):
         # algorithmically reduce search time
         if self._unconfirmed_transactions and len(self._unconfirmed_transactions) > 1:
-            self._unconfirmed_transactions = sorted(self._unconfirmed_transactions, key=lambda x: x.getattr(by))
+            self._unconfirmed_transactions = sorted(self._unconfirmed_transactions, key=lambda x: x.id)
 
     def save_data(self):
         # this is to save data back to the csv
@@ -236,12 +248,13 @@ class TransactionManager:
 
 class TotalManager:
 
-    def __init__(self, directory, file_name, SenderClass):
-        if issubclass(SenderClass, Sender):
-            raise NotImplemented("The sender class is not subclass of Sender")
+    def __init__(self, directory: str, file_name: str, date: datetime.datetime, SenderClass):
+        if not issubclass(SenderClass, Sender):
+            raise RuntimeError("Not implementing the right sender class")
         self._sender_class = SenderClass
         self._directory = directory
         self._file_name = file_name
+        self._date = date
         self._start = None
         self._end = None
         try:
@@ -253,28 +266,39 @@ class TotalManager:
                     df.drop("Unnamed: 0", inplace=True, axis=1)
                 except KeyError as err:
                     pass
-            if len(df) > 0 and "id" not in df.columns:
+            if len(df) > 0 and "date" not in df.columns:
                 new_columns = df.iloc[0]
                 df = df.iloc[1:]
                 df.columns = new_columns
             self._data = df
         except FileNotFoundError as err:
-            df = pd.DataFrame()
-            df.to_excel(f"{self.d}")
-            self._data = df
-
+            self._data = pd.DataFrame(columns=["date", "in", "out","nett"], data=None, index=[])
         self._load_latest_sent_date()
+
 
     def _load_latest_sent_date(self):
         dt = None
-        if len(self._data):
-            temp = self._data.sort_values(by="sent_date", ascending=False)
-            dt = temp.iloc[0]["send_date"]
-            dt = datetime.datetime.strptime(dt, "%Y-%m-%d")
+
+        if self._date is not None:
+            # self._date is datetime
+            # check if the date exists in the data frame already
+            if len(self._data) and self._date.strftime("%d-%m-%Y") in self._data["date"].unique():
+                raise RuntimeError("This date's total has been sent before")
+            # because we are forced to process this date
+            dt = self._date
         else:
-            # get today
-            # get the first hour and last hour
-            dt = datetime.datetime.now()
+            # if no date provided, open the dataframe and get the last date
+            if len(self._data):
+                temp = self._data.sort_values(by="date", ascending=False)
+                last_dt = temp.iloc[0]["date"]
+                last_dt = datetime.datetime.strptime(last_dt, "%d-%m-%Y")
+                # we are assigning the next day so increment
+                dt = last_dt + datetime.timedelta(days=1)
+                # first assign as from the data loaded
+            else:
+                # if no data and no date provided, go with today
+                dt = datetime.datetime.now()
+
         self._start = dt.replace(minute=0, hour=0, second=0)
         self._end = self._start + datetime.timedelta(days=1)
 
@@ -287,15 +311,35 @@ class TotalManager:
         return self._end.timestamp() * 1000
 
     def total_up(self, data: pd.DataFrame):
-        temp = data[data["blockchain_timestamp"] > self.start & data["blockchain_timestamp"] <= self.end]
-        temp = data[data["status"] == "CONFIRMED"]
+        # data["blockchain_timestamp"] = data["blockchain_timestamp"].astype("int32")
+        # data["date"] = pd.to_datetime(data["blockchain_timestamp"]/1000, unit="s")
+        temp = data[(data["blockchain_timestamp"] > self.start) & (data["blockchain_timestamp"] <= self.end) & (data["status"] == "CONFIRMED")]
+        if len(temp) == 0:
+            raise RuntimeError(f"No total for {self._date.strftime('%d-%m-%Y')}")
+        # drop everything else except amount and type
+        temp = temp.loc[:, ["type", "amount"]]
         groups = temp.groupby(["type"])
-        total_info = dict.from_keys(["date","in","out","nett"])
-        total_info["in"] = groups.get_group("in").sum()
-        total_info["out"] = groups.get_group("out").sum()
+
+        total_info = dict.fromkeys(["date","in","out","nett"])
+        try:
+            total_info["in"] = groups.get_group("in")["amount"].sum()
+        except KeyError as err:
+            total_info["in"] = 0
+        try:
+            total_info["out"] = groups.get_group("out")["amount"].sum()
+        except KeyError as err:
+            total_info["out"] = 0
         total_info["nett"] = total_info["in"] - total_info["out"]
         total_info["date"] = self._start.strftime("%d-%m-%Y")
         sender = self._sender_class()
         val = sender.send_total(total_info)
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self._store_total_data(total_info, val, now)
 
-
+    def _store_total_data(self, total_info, response_code, now):
+        total_info["sent_at"] = now
+        total_info["response_code"] = response_code
+        new_df = pd.DataFrame()
+        new_df = new_df.append(total_info, ignore_index=True)
+        self._data = pd.concat([self._data, new_df], ignore_index=True)
+        self._data.to_excel(f"{self._directory}{self._file_name}")
