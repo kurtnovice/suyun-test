@@ -50,10 +50,19 @@ def process_unconfirmed(trans_mgr:TransactionManager):
         trans_mgr.sort_unconfirmed_transactions()
         for trans_id in sorted_confirmed_trans_id_set:
             # find the trans
+            found = False
             for trans in trans_mgr.unconfirmed_transactions:
                 if trans_id == trans.id:
                     trans.status = "CONFIRMED"
                     trans_mgr.update_data(trans)
+                    found = True
+                if found:
+                    break
+            if found:
+                # reset found to False
+                found = False
+                continue
+
         print(f"Number of unconfirmed is {len(trans_mgr.unconfirmed_transactions)}")
     trans_mgr.save_data()
 
