@@ -17,7 +17,7 @@ def process_latest_trans(trans_mgr:TransactionManager):
     4. Get transactions
     5. Insert data into dataframe
     """
-    transactions = trans_mgr.request_params_builder(min_timestamp=trans_mgr.latest_record_timestamp,limit=50) \
+    transactions = trans_mgr.request_params_builder(min_timestamp=trans_mgr.latest_record_timestamp/1000,limit=50) \
         .get_latest_transactions()
     trans_mgr.insert_data(transactions)
     trans_mgr.save_data()

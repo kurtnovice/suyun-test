@@ -127,12 +127,12 @@ class TransactionManager:
         """
         # print(url)
         # print(f"query params = {json.dumps(self._params)}")
-        if "min" in self._params.keys():
+        if "min_timestamp" in self._params.keys():
             # print(self._params["min"])
-            min = int(self._params["min"]/1000)
+            min = int(self._params["min_timestamp"])
             # print(min)
             min_dt = datetime.datetime.fromtimestamp(min)
-            # print(min_dt.strftime("%Y-%m-%d %H:%M:%S"))
+            self._params["min_timestamp"] = min_dt.strftime("%Y-%m-%d %H:%M:%S")
         print(f"params: {json.dumps(self._params)}")
         req = requests.request("GET", url, params=self._params, headers=headers)
         # print(f"status code = {req.status_code}")
@@ -242,7 +242,7 @@ class TransactionManager:
         final.drop_duplicates(subset="id", keep="last", inplace=True)
         final.to_excel(f"{self._directory}{self._file_name}")
         # in self._data, remove all 
-        self._data = self._data[self._data["status"] == "UNCONFIRMED"]
+        # self._data = self._data[self._data["status"] == "UNCONFIRMED"]
         self.load_unconfirmed_only()
 
 
