@@ -273,8 +273,10 @@ class TotalManager:
             self._data = df
         except FileNotFoundError as err:
             self._data = pd.DataFrame(columns=["date", "in", "out","nett"], data=None, index=[])
-        self._load_latest_sent_date()
-
+        try:
+            self._load_latest_sent_date()
+        except RuntimeError as err:
+            raise RuntimeError(err)
 
     def _load_latest_sent_date(self):
         dt = None

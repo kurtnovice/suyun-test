@@ -77,11 +77,22 @@ if __name__ == "__main__":
         now = datetime.datetime.now()
         process_latest_trans(trans_mgr)
         process_unconfirmed(trans_mgr)
-
         time.sleep(10)
-        if now.strftime("%H:%M") == TOTAL_TRIGGER_TIME:
+        hour, min = TOTAL_TRIGGER_TIME.split(":")
+        trigger_time = now.replace(hour=int(hour), minute=int(min))
+        five_mins_after_trigger_time = trigger_time + datetime.timedelta(minutes=5)
+        print(f"trigger total time: {str(trigger_time)}")
+        print(f"now: {str(now)}")
+        print(f"five mins after trigger time: {str(five_mins_after_trigger_time)}")
+        if trigger_time <= now < five_mins_after_trigger_time:
+            print(f"Triggering total")
             # load existing data
-            trans_adp = TransactionSourceAdapter(SOURCE_FOLDER, DEFAULT_SOURCE_FILE_NAME)
-            ttl_mgr = TotalManager(SOURCE_FOLDER, DEFAULT_TOTAL_FILE_NAME, now, TelegramSender)
-            ttl_mgr.total_up(trans_adp.data)
+            try:
+                trans_adp = TransactionSourceAdapter(SOURCE_FOLDER, DEFAULT_SOURCE_FILE_NAME)
+                ttl_mgr = TotalManager(SOURCE_FOLDER, DEFAULT_TOTAL_FILE_NAME, now, TelegramSender)
+                ttl_mgr.total_up(trans_adp.data)
+            except Exception as err:
+                print(err)
+        else:
+            print("not triggering total")
 
