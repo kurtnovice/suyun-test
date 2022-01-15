@@ -4,3 +4,4 @@ __pycache__/
 env/
 test_source/*
 source/*
+test_settings.py
